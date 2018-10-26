@@ -1,0 +1,41 @@
+sudo: required
+dist: trusty
+services:
+- docker
+language: node_js
+node_js:
+- "10"
+before_cache:
+  # Save tagged docker images
+  - >
+    mkdir -p $HOME/docker && docker images -a --filter='dangling=false' --format '{{.Repository}}:{{.Tag}} {{.ID}}'
+    | xargs -n 2 -t sh -c 'test -e $HOME/docker/$1.tar.gz || docker save $0 | gzip -2 > $HOME/docker/$1.tar.gz'
+before_install:
+- if [[ -d $HOME/docker ]]; then ls $HOME/docker/*.tar.gz | xargs -I {file} sh -c "zcat {file} | docker load"; fi
+- docker pull luongnguyen/oyente
+- docker pull trailofbits/echidna
+- docker pull mythril/myth
+- docker pull trailofbits/manticore
+install:
+- npm install -g truffle ganache-cli
+script:
+- truffle compile
+- truffle migrate
+#- docker run -v $(pwd):/tmp mythril/myth -x /tmp/contracts/CryptoKitties_Core.sol
+#- docker run --rm -v $(pwd):/tmp trailofbits/manticore manticore /tmp/contracts/Migrations.sol
+- bash ./looper.sh
+before_script:
+- ganache-cli --port 7545 2> /dev/null 1> /dev/null &
+- sleep 5
+cache:
+    bundler: true
+    directories:
+        - $HOME/docker
+notifications:
+    irc:
+      - "ircs://chat.freenode.net:7070/#0xbanana"
+      on_success: always
+      on_failure: always
+      template:
+        - "%{repository_slug} (%{commit}) : %{message} %{foo} "
+        - "Build details: %{build_url}"
